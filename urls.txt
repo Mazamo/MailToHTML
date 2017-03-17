@@ -2,3 +2,5 @@ http://anh.cs.luc.edu/python/hands-on/3.1/handsonHtml/webtemplates.html
 https://docs.python.org/3/library/email.parser.html#module-email.parser
 https://docs.python.org/2/library/email-examples.html
 https://github.com/mattgwwalker/msg-extractor/blob/master/ExtractMsg.py
+https://bitbucket.org/decalage/olefileio_pl/wiki/API
+http://www.fileformat.info/format/outlookmsg/index.htm
