@@ -1,0 +1,11 @@
+FROM	: 
+TO	:
+CC	:
+Subject	:
+Date	:
+
+CONTENT
+
+ATTACHMENT LIST:
+example_one.pdf
+example_two.tif
