@@ -4,3 +4,6 @@ https://docs.python.org/2/library/email-examples.html
 https://github.com/mattgwwalker/msg-extractor/blob/master/ExtractMsg.py
 https://bitbucket.org/decalage/olefileio_pl/wiki/API
 http://www.fileformat.info/format/outlookmsg/index.htm
+http://stackoverflow.com/questions/31392361/how-to-read-eml-file-in-python
+https://docs.python.org/2/library/json.html
+http://python-3-patterns-idioms-test.readthedocs.io/en/latest/Factory.html
