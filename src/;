@@ -54,6 +54,14 @@ from emaildata.metadata import MetaData
 from emaildata.text import Text
 from emaildata.attachment import Attachment
 
+def _windowsUnicode(string):
+    if string is None:
+        return None
+    if sys.version_info[0] >= 3:  # Python 3
+        return str(string, 'utf_16_le')
+    else:  # Python 2
+        return unicode(string, 'utf_16_le')
+
 class BaseMessage(object):
     """
     Abstract class that serves as a base framework of an message.
@@ -68,45 +76,34 @@ class BaseMessage(object):
         raise NotImplementedError()
 
     def _assembleJSON(self):
-        def xstr(s):
-            return '' if s is None else str(s)
-
-        emailObject = { 'from'          : xstr(self.sender),
-                        'to'            : xstr(self.to),
-                        'cc'            : xstr(self.cc),
-                        'subject'       : xstr(self.subject),
-                        'date'          : xstr(self.date),
-                        'attachments'   : self.attachments,
-                        'body'          : self.body}
-        
-        return json.dumps(emailObject)
+        raise NotImplementedError()
     
     @property
-    def sender(self):
+    def _sender(self):
         raise NotImplementedError()
 
     @property
-    def to(self):
+    def _to(self):
         raise NotImplementedError()
 
     @property
-    def cc(self):
+    def _cc(self):
         raise NotImplementedError()
 
     @property
-    def subject(self):
+    def _subject(self):
         raise NotImplementedError()
 
     @property
-    def date(self):
+    def _date(self):
         raise NotImplementedError()
 
     @property
-    def body(self):
+    def _body(self):
         raise NotImplementedError()
 
     @property
-    def attachments(self):
+    def _attachments(self):
         raise NotImplementedError()
 
     @classmethod
@@ -130,6 +127,7 @@ class EMLMessage(BaseMessage):
     def init(self, filename):
         super(EMLMessage, self).__init__()
 
+        self._attachments = []
         self._text = ""
         self._data = None
         self._message = None
@@ -140,47 +138,48 @@ class EMLMessage(BaseMessage):
         f.close()
 
         self._data = MetaData(self._message).to_dict()
-        self._text = Text.text(self._message)
+        self._text = Text.text(self_.message)
+        self._attachments = _getAttachments(self._message)
 
-        return self._assembleJSON()
+        return _assembleJSON(self)
 
     @property
-    def attachments(self):
+    def _attachments(self):
     	attachmentList = []
     	for content, filename, mimetype, message in Attachment.extract(self._message):
     	    attachmentList.append(filename)
     	return attachmentList
 
     @property
-    def sender(self):
-    	if self._data.get('sender') is not None:
-    	    return self._data.get('sender')
+    def _sender(self):
+    	if self.data.get('sender') is not None:
+    	    return self.data.get('sender')
 
     @property
-    def to(self):
+    def _to(self):
     	receiverList = []
-    	for receiver in self._data.get('receivers'):
+    	for receiver in self.data.get('receivers'):
         	if receiver is not None:
         	    receiverList.append(receiver)
     	return receiverList
 
     @property
-    def cc(self):
+    def _cc(self):
     	ccList = []
-    	for c in self._data.get('cc'):
+    	for c in self.data.get('cc'):
     	    if c is not None:
     	        ccList.append(c)
     	return ccList
 
     @property
-    def subject(self):
-    	if self._data.get('subject') is not None:
-    	    return self._data.get('subject')
+    def _subject(self):
+    	if self.data.get('subject') is not None:
+    	    return self.data.get('subject')
 
     @property
-    def date(self):
-    	if self._data.get('date') is not None:
-    	   tempDate = (self._data.get('date')).timetuple()
+    def _date(self):
+    	if self.data.get('date') is not None:
+    	   tempDate = (self.data.get('date')).timetuple()
     	   date = "{0}-{1}-{2}, {3}:{4}".format(tempDate[2], tempDate[1], tempDate[0], tempDate[3], tempDate[4])
     	   return date
 
@@ -188,13 +187,13 @@ class EMLMessage(BaseMessage):
     	def xstr(s):
     	    return '' if s is None else str(s)
     
-    	emailObj = {'from'          : xstr(self.sender),
-    	            'to'            : self.to,
-    	            'cc'            : self.cc,
-    	            'subject'       : xstr(self.subject),
-    	            'date'          : xstr(self.date),
-    	            'attachments'   : self.attachments,
-    	            'body'          : xstr(self.text)}
+    	emailObj = {'from'          : xstr(self._sender),
+    	            'to'            : self._to,
+    	            'cc'            : self._cc,
+    	            'subject'       : xstr(self_subject),
+    	            'date'          : xstr(self._date),
+    	            'attachments'   : self._attachments,
+    	            'body'          : xstr(self._text)}
 
     	return json.dumps(emailObj)
 
@@ -221,19 +220,11 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
         Every field in an OleMSG file is build op from text streams
         that must be handled seperatly.
         """
-        if self.exists(filename):
+        if self.exist(filename):
             stream = self.openstream(filename)
             return stream.read()
         else:
             return None
-
-    def _windowsUnicode(string):
-        if string is None:
-            return None
-        if sys.version_info[0] >= 3:  # Python 3
-            return str(string, 'utf_16_le')
-        else:  # Python 2
-            return unicode(string, 'utf_16_le')
 
     def _getStringStream(self, filename, prefer='unicode'):
         """Gets a string representation of the requested filename.
@@ -248,8 +239,7 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
             filename = "/".join(filename)
 
         asciiVersion = self._getStream(filename + '001E')
-        print filename 
-        unicodeVersion = self._windowsUnicode(self._getStream(filename + '001F'))
+        unicodeVersion = windowsUnicode(self._getStream(filename + '001F'))
         if asciiVersion is None:
             return unicodeVersion
         elif unicodeVersion is None:
@@ -261,14 +251,14 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
                 return asciiVersion
 
     @property
-    def subject(self):
+    def _subject(self):
         return self._getStringStream('__substg1.0_0037')
 
     @property
     def _header(self):
         try:
             return self._header
-        except Exception:
+        except Exeption:
             headerText = self._getStringStream('__substg1.0_007D')
             if headerText is not None:
                 self._header = EmailParser().parsestr(headerText)
@@ -277,19 +267,19 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
             return selft._header
 
     @property
-    def date(self):
+    def _date(self):
         # Get the message's header and extract the date
-        if self._header is None:
+        if self.header is None:
             return None
         else:
-            return self._header['date']
+            return self.header['date']
 
     @property
     def _parseDate(self):
         return email.utils.parsedate(self.date)
 
     @property
-    def sender(self):
+    def _sender(self):
         try:
             return self._sender
         except Exception:
@@ -316,12 +306,12 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
             return result
 
     @property
-    def to(self):
+    def _to(self):
         try:
             return self._to
         except Exception:
             # Chck header first
-            if self._header is not None:
+            if self.header is not None:
                 headerResult = self.header["to"]
                 if headerResult is not None:
                     self._to = headerResult
@@ -334,12 +324,12 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
 
 
     @property
-    def cc(self):
+    def _cc(self):
         try:
             return self._cc
         except Exception:
             # Check header first
-            if self._header is not None:
+            if self.header is not None:
                 headerResult = self.header["cc"]
                 if headerResult is not None:
                     self._cc = headerResult
@@ -351,12 +341,12 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
             return display
 
     @property
-    def body(self):
+    def _body(self):
         # Get the message body
-        return decode_utf7(self_getStringStream('__substg1.0_1000'))
+        return self_getStringStream('__substg1.0_1000')
 
     @property
-    def attachments(self):
+    def _attachments(self):
         try:
             return self._attachments
         except Exception:
@@ -378,13 +368,13 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
         def xstr(s):
             return '' if s is None else str(s)
 
-        emailObject = { 'from'          : xstr(self.sender),
-                        'to'            : xstr(self.to),
-                        'cc'            : xstr(self.cc),
-                        'subject'       : xstr(self.subject),
-                        'date'          : xstr(self.date),
-                        'attachments'   : self.attachments,
-                        'body'          : self.body}
+        emailObject = { 'from'          : xstr(self._sender),
+                        'to'            : xstr(self._to),
+                        'cc'            : xstr(self._cc),
+                        'subject'       : xstr(self._subject),
+                        'date'          : xstr(self._date),
+                        'attachments'   : self._attachments,
+                        'body'          : decode_utf7(self._body)}
         
         return json.dumps(emailObject)
     
@@ -408,14 +398,16 @@ class MessageManager(object):
     def chooseMessageEngine(self):
         for engine in self.ARCHIVES_ENGINES:
             if engine.check_extension(self._extension):
+                print self._extension
+                print 
                 return engine(self._filename + self._extension)
 
     def createJSON(self):
         return self._messageEngine.getData()
 
 if __name__ == '__main__':
-    #message = MessageManager("test_msg.msg")
-    #print message.createJSON()
+    message = MessageManager("test_msg.msg")
+    print message.createJSON()
 
     message = MessageManager("test_sample_message.eml")
     print message.createJSON()
