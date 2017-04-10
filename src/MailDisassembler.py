@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 #-*- coding: latin-1 -*-
+
 """
 MailDisassembler:
     Extracts the data from MSG and EML files.
@@ -13,11 +14,14 @@ MailDisassembler:
     Github Page:
     https://github.com/Mazamo/MailToHTML 
     
-    The eml related code in this file is uses the default Email module.
+    The implementation of the factory pattern is based on the tutorial 
+    from Krzysztof Zuraw on his website; 
+    https://krzysztofzuraw.com/blog/2016/factory-pattern-python.html
+    https://github.com/krzysztofzuraw/personal-blog-projects/blob/master/factory_pattern/factory.py
 """
 
 __author__ = "Nick de Visser"
-__date__ = "2017-03-27"
+__date__ = "2017-04-10"
 __version__ = '0.0'
 
 # --- LICENSE -----------------------------------------------------------------
@@ -41,12 +45,15 @@ import os
 import sys
 import glob
 import traceback
-from email.parser import Parser as EmailParser
-import email.utils
-import email.utils
+import email
+import re
 import olefile as OleFile
 import json
 from __future__ import generators
+from email.parser import Parser as EmailParser
+from emaildata.metadata import MetaData
+from emaildata.text import Text
+from emaildata.attachment import Attachment
 
 def _windowsUnicode(string):
     if string is None:
@@ -56,68 +63,176 @@ def _windowsUnicode(string):
     else:  # Python 2
         return unicode(string, 'utf_16_le')
 
-class Message(Object):
-    def getData():
-        raise NotImplementedError()
-
-    def _assembleJSON():
-        raise NotImplementedError()
+class MessageManager(object):
+    """
+    Manager class that manages the extraction from the message.
+    This class chooses the right extractor class and returns the 
+    assembled JSON file.
+    """
     
-    def factory(type):
-        # Perform the test to determine wich Message file should be build.
-        if type == "EMLMessage": return EMLMessage()
-        if type == "MSGMessage": return MSGMessage()
-        assert 0, "Bad Message creation: " + type
-    factory = staticmethod(factory)
+    ARCHIVES_ENGINES = [EMLMessage, MSGMessage]
+
+    def __init__(self, filename):
+        self._filename = filename
+        self._extension = os.path.splittext(filename)
+        self._messageEngine = self.chooseMessageEngine()
 
 
-class EMLMessage(Message):
-    def getData(self):
-        pass
+    def chooseMessageEngine(self):
+        for engine in self.ARCHIVES_ENGINES:
+            if engine.check_extension(self._extension):
+                return engine(self._filename)
+
+    def createJSON(self):
+        return self._messageEngine.getData(self._filename)
+
+class BaseMessage(object):
+    """
+    Abstract class that serves as a base framework of an message.
+    """
+    
+    EXTENSION = None
+
+    def getData(fileName):
+        raise NotImplementedError()
 
     def _assembleJSON(self):
-        pass
+        raise NotImplementedError()
+    
+    @property
+    def _sender(self):
+        raise NotImplementedError()
 
-    def _pullout(self, m, key):
-        """
-        Extracts content from an e-mail message.
-        This works for multipart and nested multipart messages too.
-        m   -- email.Message() or mailbox.Message()
-        key -- Initial message ID (some String)
-        Returns tuple(Text, Html, Files, Parts)
-        Text  -- All text from all parts.
-        Html  -- All HTMLS from all parts.
-        Files -- Dictionary mapping extracted file to message ID it belongs to.
-        Parts -- Number of parts in original message.
-        """
-        pass
+    @property
+    def _to(self):
+        raise NotImplementedError()
 
-    def _extract(self, messageFile, key):
-        """
-        Extracts all data from e-mail, includeing From, To, etc., and returns
-        it as a dictionary.
-        msgfile -- A file-like readable object
-        key     -- Some ID string for that particular Message. Can be a file
-                   name or anything.
-        Returns a dict()
-        Keys: from, to, subject, date, text, html, parts[, files]
-        Key files will be pressent only when message contained binary files.
-        For more see __doc__ for pullout() and caption() functions.
-        """
-        pass
+    @property
+    def _cc(self):
+        raise NotImplementedError()
 
-    def _caption(self, origin)
-        """
-        Extracts: To, From, Subject and Date from email.Message() or 
-        mailbox.Message()
-        origin -- Message() object
-        Returns tuple(From, To, Subject, Date)
-        If message doesn't contain one/more of them, the empty strings will
-        be returned.
-        """
-        pass
+    @property
+    def _subject(self):
+        raise NotImplementedError()
+
+    @property
+    def _date(self):
+        raise NotImplementedError()
+
+    @property
+    def _body(self):
+        raise NotImplementedError()
+
+    @property
+    def _attachments(self):
+        raise NotImplementedError()
+
+    @classmethod
+    def check_extension(cls, extension):
+        return extension == cls.EXTENSION
+
+class EMLMessage(Message):
+    """
+    EML message extractor that extracts the following data form a eml file:
+    - Source name
+    - Source email address
+    - Destinatoin email address
+    - CC
+    - Date
+    - Content
+    - A list of attachment names
+    """
+	
+    EXTENSION = ".eml"
+
+    def init(self, filename):
+        self._filename = filename
+        self._attachments = []
+        self._text = ""
+        self._data = None
+        self._message = None
+        
+        getData() 		
+	
+    def getData(self):
+        f = open(self._filename)
+        self._message = email.message_from_file(f)
+        f.close()
+
+        self._data = MetaData(self._message).to_dict()
+        self._text = Text.text(self_.message)
+        self._attachments = _getAttachments(self._message)
+
+        return _assembleJSON(self)
+
+    @property
+    def _attachments(self):
+    	attachmentList = []
+    	for content, filename, mimetype, message in Attachment.extract(self._message):
+    	    attachmentList.append(filename)
+    	return attachmentList
+
+    @property
+    def _sender(self):
+    	if self.data.get('sender') is not None:
+    	    return self.data.get('sender')
+
+    @property
+    def _to(self):
+    	receiverList = []
+    	for receiver in self.data.get('receivers'):
+        	if receiver is not None:
+        	    receiverList.append(receiver)
+    	return receiverList
+
+    @property
+    def _cc(self):
+    	ccList = []
+    	for c in self.data.get('cc'):
+    	    if c is not None:
+    	        ccList.append(c)
+    	return ccList
+
+    @property
+    def _subject(self):
+    	if self.data.get('subject') is not None:
+    	    return self.data.get('subject')
+
+    @property
+    def _date(self):
+    	if self.data.get('date') is not None:
+    	   tempDate = (self.data.get('date')).timetuple()
+    	   date = "{0}-{1}-{2}, {3}:{4}".format(tempDate[2], tempDate[1], tempDate[0], tempDate[3], tempDate[4])
+    	   return date
+
+    def _assembleJSON(self):
+    	def xstr(s):
+    	    return '' if s is None else str(s)
+    
+    	emailObj = {'from'          : xstr(self._sender),
+    	            'to'            : self._to,
+    	            'cc'            : self._cc,
+    	            'subject'       : xstr(self_subject),
+    	            'date'          : xstr(self._date),
+    	            'attachments'   : self._attachments,
+    	            'body'          : xstr(self._text)}
+
+    	return json.dumps(emailObj)
 
 class MSGMessage(Message, OleFile.OleFileIO):
+    """
+    MSG message extractor that gets the following data form a msg file:
+    - Source name
+    - Source email address
+    - Destinatoin email address
+    - CC
+    - Date
+    - Content
+    - A list of attachment names
+    """
+    
+    EXTENSION = '.msg'
+
     def __init__(self, filename)
         OleFile.OleFileIO.__init__(self, filename)
 
@@ -158,7 +273,7 @@ class MSGMessage(Message, OleFile.OleFileIO):
                 return asciiVersion
 
     @property
-    def subject(self):
+    def _subject(self):
         return self._getStringStream('__substg1.0_0037')
 
     @property
@@ -207,7 +322,7 @@ class MSGMessage(Message, OleFile.OleFileIO):
             else:
                 result = text
                 if email is not None:
-                    result = result + "<" + email + ">"
+                    result = result + email
 
             self._sender = result
             return result
@@ -272,11 +387,6 @@ class MSGMessage(Message, OleFile.OleFileIO):
             return self.attachments
     
     def _assembleJSON(self):
-        attachmentNames = []
-        # Save the attachments
-        for attachment in self.attachments:
-            attachmentNames.append(attachment.save())
-
         def xstr(s):
             return '' if s is None else str(s)
 
@@ -285,7 +395,10 @@ class MSGMessage(Message, OleFile.OleFileIO):
                         'cc'            : xstr(self._cc),
                         'subject'       : xstr(self._subject),
                         'date'          : xstr(self._date),
-                        'attachments'   : attachmentNames,
+                        'attachments'   : self._attachments,
                         'body'          : decode_utf7(self.body)}
         
         return json.dumps(emailObject)
+    
+    def getData(self):
+        return _assembleJSON()
