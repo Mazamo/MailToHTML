@@ -13,11 +13,6 @@ MailDisassembler:
 
     Github Page:
     https://github.com/Mazamo/MailToHTML 
-    
-    The implementation of the factory pattern is based on the tutorial 
-    from Krzysztof Zuraw on his website; 
-    https://krzysztofzuraw.com/blog/2016/factory-pattern-python.html
-    https://github.com/krzysztofzuraw/personal-blog-projects/blob/master/factory_pattern/factory.py
 """
 
 __author__ = "Nick de Visser"

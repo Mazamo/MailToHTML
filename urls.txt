@@ -1,3 +1,4 @@
+Usefull URLS:
 http://anh.cs.luc.edu/python/hands-on/3.1/handsonHtml/webtemplates.html
 https://docs.python.org/3/library/email.parser.html#module-email.parser
 https://docs.python.org/2/library/email-examples.html
@@ -7,3 +8,4 @@ http://www.fileformat.info/format/outlookmsg/index.htm
 http://stackoverflow.com/questions/31392361/how-to-read-eml-file-in-python
 https://docs.python.org/2/library/json.html
 http://python-3-patterns-idioms-test.readthedocs.io/en/latest/Factory.html
+https://blogs.msdn.microsoft.com/openspecification/2009/11/06/msg-file-format-part-1/
