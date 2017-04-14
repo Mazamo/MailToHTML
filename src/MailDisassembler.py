@@ -140,9 +140,15 @@ class EMLMessage(BaseMessage):
         f.close()
 
         self._data = MetaData(self._message).to_dict()
-        self._text = Text.text(self._message)
 
         return self._assembleJSON()
+
+    @property
+    def body(self):
+        if Text.text(self._message) is not None:
+            return Text.text(self._message)
+        else:
+            return ""
 
     @property
     def attachments(self):
@@ -184,20 +190,6 @@ class EMLMessage(BaseMessage):
     	   date = "{0}-{1}-{2}, {3}:{4}".format(tempDate[2], tempDate[1], tempDate[0], tempDate[3], tempDate[4])
     	   return date
 
-    def _assembleJSON(self):
-    	def xstr(s):
-    	    return '' if s is None else str(s)
-    
-    	emailObj = {'from'          : xstr(self.sender),
-    	            'to'            : self.to,
-    	            'cc'            : self.cc,
-    	            'subject'       : xstr(self.subject),
-    	            'date'          : xstr(self.date),
-    	            'attachments'   : self.attachments,
-    	            'body'          : xstr(self.text)}
-
-    	return json.dumps(emailObj)
-
 class MSGMessage(BaseMessage, OleFile.OleFileIO):
     """
     MSG message extractor that gets the following data form a msg file:
@@ -227,7 +219,7 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
         else:
             return None
 
-    def _windowsUnicode(string):
+    def _windowsUnicode(self, string):
         if string is None:
             return None
         if sys.version_info[0] >= 3:  # Python 3
@@ -248,7 +240,6 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
             filename = "/".join(filename)
 
         asciiVersion = self._getStream(filename + '001E')
-        print filename 
         unicodeVersion = self._windowsUnicode(self._getStream(filename + '001F'))
         if asciiVersion is None:
             return unicodeVersion
@@ -265,7 +256,7 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
         return self._getStringStream('__substg1.0_0037')
 
     @property
-    def _header(self):
+    def header(self):
         try:
             return self._header
         except Exception:
@@ -274,15 +265,15 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
                 self._header = EmailParser().parsestr(headerText)
             else:
                 self._header = None
-            return selft._header
+            return self._header
 
     @property
     def date(self):
         # Get the message's header and extract the date
-        if self._header is None:
+        if self.header is None:
             return None
         else:
-            return self._header['date']
+            return self.header['date']
 
     @property
     def _parseDate(self):
@@ -294,8 +285,8 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
             return self._sender
         except Exception:
             # Check header first
-            if self._header is not None:
-                headerResult = self._header["from"]
+            if self.header is not None:
+                headerResult = self.header["from"]
                 if headerResult is not None:
                     self._sender = headerResult
                     return headerResult
@@ -321,7 +312,7 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
             return self._to
         except Exception:
             # Chck header first
-            if self._header is not None:
+            if self.header is not None:
                 headerResult = self.header["to"]
                 if headerResult is not None:
                     self._to = headerResult
@@ -339,7 +330,7 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
             return self._cc
         except Exception:
             # Check header first
-            if self._header is not None:
+            if self.header is not None:
                 headerResult = self.header["cc"]
                 if headerResult is not None:
                     self._cc = headerResult
@@ -347,16 +338,22 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
 
             # Extract from other fields
             display = self._getStringStream('__substg1.0_0E03')
-            self._cc = dislay
+            self._cc = display
             return display
 
     @property
     def body(self):
         # Get the message body
-        return decode_utf7(self_getStringStream('__substg1.0_1000'))
+        return self._getStringStream('__substg1.0_1000') 
 
     @property
     def attachments(self):
+        class Attachment(object):
+            def __init__(self, msg, dir_):
+                self.longFilename = msg._getStringStream([dir_, '__substg1.0_3707'])
+                self.shortFilename = msg._getStringStream([dir_, '__substg1.0_3704'])
+                self.data = msg._getStream([dir_, '__substg1.0_37010102'])
+
         try:
             return self._attachments
         except Exception:
@@ -368,25 +365,14 @@ class MSGMessage(BaseMessage, OleFile.OleFileIO):
                     attachmentDirs.append(dir_[0])
 
             self._attachments = []
-
             for attachmentDir in attachmentDirs:
                 self._attachments.append(Attachment(self, attachmentDir))
 
-            return self.attachments
-    
-    def _assembleJSON(self):
-        def xstr(s):
-            return '' if s is None else str(s)
-
-        emailObject = { 'from'          : xstr(self.sender),
-                        'to'            : xstr(self.to),
-                        'cc'            : xstr(self.cc),
-                        'subject'       : xstr(self.subject),
-                        'date'          : xstr(self.date),
-                        'attachments'   : self.attachments,
-                        'body'          : self.body}
-        
-        return json.dumps(emailObject)
+            attachmentNames = []
+            for attachment in self._attachments:
+                attachmentNames.append(attachment.longFilename)
+            
+            return attachmentNames
     
     def getData(self):
         return self._assembleJSON()
@@ -414,11 +400,25 @@ class MessageManager(object):
         return self._messageEngine.getData()
 
 if __name__ == '__main__':
-    #message = MessageManager("test_msg.msg")
-    #print message.createJSON()
+    message = MessageManager("test_msg.msg")
+    print message.createJSON()
+
+    print ""
+
+    message = MessageManager("unicode.msg")
+    print message.createJSON()
+
+    print "" 
 
     message = MessageManager("test_sample_message.eml")
     print message.createJSON()
 
+    print ""
+
     message = MessageManager("message.eml")
+    print message.createJSON()
+
+    print ""
+
+    message = MessageManager("email_test.msg")
     print message.createJSON()
